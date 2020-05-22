@@ -24,17 +24,15 @@ from official.modeling import performance
 from official.staging.training import grad_utils
 from official.staging.training import standard_runnable
 from official.staging.training import utils
-from official.utils.flags import core as flags_core
 from official.vision.image_classification.resnet import common
 from official.vision.image_classification.resnet import imagenet_preprocessing
 from official.vision.image_classification.resnet import resnet_model
-
 
 class ResnetHopsRunnable(standard_runnable.StandardTrainable,
                      standard_runnable.StandardEvaluable):
   """Implements the training and evaluation APIs for Resnet model."""
 
-  def __init__(self, use_tf_while_loop, use_tf_function, dtype, global_batch_size, use_synthetic_data,
+  def __init__(self, use_tf_while_loop, use_tf_function, dtype, global_batch_size, datasets_num_private_threads, use_synthetic_data,
                single_l2_loss_op, loss_scale, fp16_implementation, data_dir, num_images_train, time_callback, epoch_steps):
     standard_runnable.StandardTrainable.__init__(self,
                                                  use_tf_while_loop,
@@ -50,11 +48,11 @@ class ResnetHopsRunnable(standard_runnable.StandardTrainable,
     self.single_l2_loss_op = single_l2_loss_op
     self.loss_scale = loss_scale
 
-
     # Input pipeline related
     self.data_dir = data_dir
     self.global_batch_size = global_batch_size
     self.num_images_train = num_images_train
+    self.datasets_num_private_threads = datasets_num_private_threads
 
     if global_batch_size % self.strategy.num_replicas_in_sync != 0:
       raise ValueError(
@@ -127,8 +125,7 @@ class ResnetHopsRunnable(standard_runnable.StandardTrainable,
         data_dir=self.data_dir,
         batch_size=self.batch_size,
         parse_record_fn=imagenet_preprocessing.parse_record,
-        datasets_num_private_threads=self.flags_obj
-        .datasets_num_private_threads,
+        datasets_num_private_threads=self.datasets_num_private_threads,
         dtype=self.dtype,
         drop_remainder=True)
 
