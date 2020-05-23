@@ -58,6 +58,7 @@ class TimeHistory(tf.keras.callbacks.Callback):
     self.steps_before_epoch = 0
     self.steps_in_epoch = 0
     self.start_time = None
+    self.elapsed_time = None
 
     if logdir:
       self.summary_writer = tf.summary.create_file_writer(logdir)
@@ -109,14 +110,14 @@ class TimeHistory(tf.keras.callbacks.Callback):
     steps_since_last_log = self.global_steps - self.last_log_step
     if steps_since_last_log >= self.log_steps:
       now = time.time()
-      elapsed_time = now - self.start_time
-      steps_per_second = steps_since_last_log / elapsed_time
+      self.elapsed_time = now - self.start_time
+      steps_per_second = steps_since_last_log / self.elapsed_time
       examples_per_second = steps_per_second * self.batch_size
 
       self.timestamp_log.append(BatchTimestamp(self.global_steps, now))
       logging.info(
           'TimeHistory: %.2f seconds, %.2f examples/second between steps %d '
-          'and %d', elapsed_time, examples_per_second, self.last_log_step,
+          'and %d', self.elapsed_time, examples_per_second, self.last_log_step,
           self.global_steps)
 
       if self.summary_writer:

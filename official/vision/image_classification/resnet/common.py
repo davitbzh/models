@@ -23,9 +23,14 @@ from absl import flags
 import tensorflow as tf
 
 from tensorflow.python.keras.optimizer_v2 import gradient_descent as gradient_descent_v2
-import tensorflow_model_optimization as tfmot
 from official.utils.flags import core as flags_core
 from official.utils.misc import keras_utils
+
+
+try:
+    import tensorflow_model_optimization as tfmot
+except ImportError:
+    pass
 
 FLAGS = flags.FLAGS
 BASE_LEARNING_RATE = 0.1  # This matches Jing's version.

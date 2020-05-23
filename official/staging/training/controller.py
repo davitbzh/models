@@ -248,6 +248,8 @@ class Controller(object):
       steps_per_loop = tf.convert_to_tensor(steps_per_loop, dtype=tf.int32)
 
       with self.summary_manager.summary_writer.as_default():
+        # TODO(davit):
+        #tf.summary.trace_on(graph=True, profiler=True)
         train_outputs = self.train_fn(steps_per_loop)
 
       # Updates and verifies the current step after a training loop finishes.
@@ -275,6 +277,8 @@ class Controller(object):
       if evaluate:
         self._maybe_evaluate(current_step)
 
+    # TODO (davit)
+    #tf.summary.trace_export("Train", profiler_outdir="...")
     self.summary_manager.write_summaries(train_outputs, always_write=True)
     self.summary_manager.flush()
     self._maybe_save_checkpoints(current_step, force_trigger=True)

@@ -32,8 +32,11 @@ class ResnetHopsRunnable(standard_runnable.StandardTrainable,
                      standard_runnable.StandardEvaluable):
   """Implements the training and evaluation APIs for Resnet model."""
 
-  def __init__(self, use_tf_while_loop, use_tf_function, dtype, global_batch_size, datasets_num_private_threads, use_synthetic_data,
-               single_l2_loss_op, loss_scale, fp16_implementation, data_dir, num_images_train, time_callback, epoch_steps):
+
+
+  def __init__(self, eval_input_fn, train_input_fn, use_tf_while_loop, use_tf_function, dtype, global_batch_size,
+               datasets_num_private_threads, single_l2_loss_op, loss_scale, fp16_implementation, bytes_per_pack,
+               num_images_train, time_callback, epoch_steps):
     standard_runnable.StandardTrainable.__init__(self,
                                                  use_tf_while_loop,
                                                  use_tf_function)
@@ -47,9 +50,9 @@ class ResnetHopsRunnable(standard_runnable.StandardTrainable,
 
     self.single_l2_loss_op = single_l2_loss_op
     self.loss_scale = loss_scale
+    self.bytes_per_pack = bytes_per_pack
 
     # Input pipeline related
-    self.data_dir = data_dir
     self.global_batch_size = global_batch_size
     self.num_images_train = num_images_train
     self.datasets_num_private_threads = datasets_num_private_threads
@@ -65,17 +68,8 @@ class ResnetHopsRunnable(standard_runnable.StandardTrainable,
     # we use per-replica batch size.
     self.batch_size = int(self.global_batch_size / self.strategy.num_replicas_in_sync)
 
-    self.use_synthetic_data = use_synthetic_data
-    if self.use_synthetic_data:
-      self.input_fn = common.get_synth_input_fn(
-          height=imagenet_preprocessing.DEFAULT_IMAGE_SIZE,
-          width=imagenet_preprocessing.DEFAULT_IMAGE_SIZE,
-          num_channels=imagenet_preprocessing.NUM_CHANNELS,
-          num_classes=imagenet_preprocessing.NUM_CLASSES,
-          dtype=self.dtype,
-          drop_remainder=True)
-    else:
-      self.input_fn = imagenet_preprocessing.input_fn
+    self.eval_input_fn = eval_input_fn
+    self.train_input_fn = train_input_fn
 
     self.model = resnet_model.resnet50(
         num_classes=imagenet_preprocessing.NUM_CLASSES,
@@ -117,28 +111,32 @@ class ResnetHopsRunnable(standard_runnable.StandardTrainable,
     self.epoch_helper = utils.EpochHelper(epoch_steps, self.global_step)
 
   def build_train_dataset(self):
-    """See base class."""
-    return utils.make_distributed_dataset(
-        self.strategy,
-        self.input_fn,
-        is_training=True,
-        data_dir=self.data_dir,
-        batch_size=self.batch_size,
-        parse_record_fn=imagenet_preprocessing.parse_record,
-        datasets_num_private_threads=self.datasets_num_private_threads,
-        dtype=self.dtype,
-        drop_remainder=True)
-
+      # TODO (davit): make this as util function
+      return self.train_input_fn
+  #   """See base class."""
+  #   return utils.make_distributed_dataset(
+  #       self.strategy,
+  #       self.input_fn,
+  #       is_training=True,
+  #       data_dir=self.data_dir,
+  #       batch_size=self.batch_size,
+  #       parse_record_fn=imagenet_preprocessing.parse_record,
+  #       datasets_num_private_threads=self.datasets_num_private_threads,
+  #       dtype=self.dtype,
+  #       drop_remainder=True)
+  #
   def build_eval_dataset(self):
     """See base class."""
-    return utils.make_distributed_dataset(
-        self.strategy,
-        self.input_fn,
-        is_training=False,
-        data_dir=self.data_dir,
-        batch_size=self.batch_size,
-        parse_record_fn=imagenet_preprocessing.parse_record,
-        dtype=self.dtype)
+    # TODO (davit): make this as util function
+    return self.eval_input_fn
+    # return utils.make_distributed_dataset(
+    #     self.strategy,
+    #     self.input_fn,
+    #     is_training=False,
+    #     data_dir=self.data_dir,
+    #     batch_size=self.batch_size,
+    #     parse_record_fn=imagenet_preprocessing.parse_record,
+    #     dtype=self.dtype)
 
   def train_loop_begin(self):
     """See base class."""
@@ -176,7 +174,10 @@ class ResnetHopsRunnable(standard_runnable.StandardTrainable,
           loss += (tf.reduce_sum(self.model.losses) / num_replicas)
 
       grad_utils.minimize_using_explicit_allreduce(
-          tape, self.optimizer, loss, self.model.trainable_variables)
+          tape, self.optimizer, loss, self.model.trainable_variables,
+          pre_allreduce_callbacks=None,
+          post_allreduce_callbacks=None,
+          bytes_per_pack=self.bytes_per_pack)
       self.train_loss.update_state(loss)
       self.train_accuracy.update_state(labels, logits)
 
@@ -205,7 +206,7 @@ class ResnetHopsRunnable(standard_runnable.StandardTrainable,
       images, labels = inputs
       logits = self.model(images, training=False)
       loss = tf.keras.losses.sparse_categorical_crossentropy(labels, logits)
-      loss = tf.reduce_sum(loss) * (1.0 / self.flags_obj.batch_size)
+      loss = tf.reduce_sum(loss) * (1.0 / self.global_batch_size)
       self.test_loss.update_state(loss)
       self.test_accuracy.update_state(labels, logits)
 
