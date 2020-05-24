@@ -193,9 +193,10 @@ import six
 # from tensorflow.python.ops import summary_ops_v2
 # from tensorflow.python.platform import tf_logging as logging
 # from tensorflow.python.profiler import profiler_v2 as profiler
-from  tensorflow.profiler import experimental  as profiler
-from tensorflow.python.util import nest
 
+
+#from  tensorflow.profiler import experimental  as profiler
+from tensorflow.python.util import nest
 
 class TimeHistoryWithProfiler(tf.keras.callbacks.Callback):
   """Callback for Keras models."""
@@ -211,7 +212,7 @@ class TimeHistoryWithProfiler(tf.keras.callbacks.Callback):
     # TODO(wcromar): remove this parameter and rely on `logs` parameter of
     # on_train_batch_end()
     self.batch_size = batch_size
-    super(TimeHistory, self).__init__()
+    super(TimeHistoryWithProfiler, self).__init__()
     self.log_steps = log_steps
     self.last_log_step = 0
     self.steps_before_epoch = 0
@@ -293,20 +294,23 @@ class TimeHistoryWithProfiler(tf.keras.callbacks.Callback):
 
   def _start_trace(self):
     #summary_ops_v2.trace_on(graph=True, profiler=False)
-    tf.summary.trace_on(graph=True, profiler=False)
-    profiler.start(logdir=self._train_dir)
+    print("@here: staring profiler" )
+    #tf.summary.trace_on(graph=True, profiler=False)
+    tf.profiler.experimental.start(logdir=self._train_dir)
     self._is_tracing = True
 
   def _stop_trace(self, batch=None):
     """Logs the trace graph to TensorBoard."""
-    if batch is None:
-      batch = self._stop_batch
-    with self.summary_writer.as_default():
-      # https://github.com/tensorflow/tensorflow/issues/26405
-      #with summary_ops_v2.always_record_summaries():
-      #  summary_ops_v2.trace_export(name='batch_%d' % batch, step=batch)
-      tf.summary.trace_export( name='batch_%d' % batch, step=batch)
-    profiler.stop()
+    #if batch is None:
+    #  batch = self._stop_batch
+    # with self.summary_writer.as_default():
+    #   # https://github.com/tensorflow/tensorflow/issues/26405
+    #   #with summary_ops_v2.always_record_summaries():
+    #   #summary_ops_v2.trace_export(name='batch_%d' % batch, step=batch)
+    #
+    #   tf.summary.trace_export( name='batch_%d' % batch, step=batch)
+    print("@here: stopping profiler" )
+    tf.profiler.experimental.stop()
     self._is_tracing = False
 
   # this we will call before train
