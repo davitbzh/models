@@ -50,6 +50,11 @@ def run(
     os.environ['NCCL_SOCKET_NTHREADS'] = NCCL_SOCKET_NTHREADS
 
     import tensorflow as tf
+    # tf.logging.set_verbosity('DEBUG')
+    # tf.debugging.experimental.enable_dump_debug_info(
+    #     dump_root, tensor_debug_mode=DEFAULT_TENSOR_DEBUG_MODE,
+    #     circular_buffer_size=1000, op_regex=None, tensor_dtypes=None
+    # )
 
     import numpy as np
 
@@ -343,9 +348,10 @@ def run(
         'total steps: %d; Eval %d steps', train_epochs, per_epoch_steps,
         train_epochs * per_epoch_steps, eval_steps)
 
-    time_callback = keras_utils.TimeHistory(
+    time_callback = keras_utils.TimeHistoryWithProfiler(
         global_batch_size,
         log_steps,
+        profile_batch=2,
         logdir=model_dir if enable_tensorboard else None)
     with distribution_utils.get_strategy_scope(strategy):
         runnable = resnet_hops_runnable.ResnetHopsRunnable(train_dist_dataset, eval_dist_dataset,
